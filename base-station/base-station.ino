@@ -21,6 +21,16 @@
 #include "RF24.h"
 #include "printf.h"
 
+#include "AESLib.h"
+
+#include <Servo.h>
+
+#define SERVO_PIN 4
+
+uint8_t key[] = { 0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,
+                          0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};
+
+
 //
 // Hardware configuration
 //
@@ -52,12 +62,22 @@ const char *role_friendly_name[] = { "invalid", "Remote Control", "Base Station"
 // The role of the current running sketch
 role_e role = role_base_station;
 
+
+
+Servo myservo;
+
+
+
 void setup(void)
 {
   //
   // Print preamble
   //
   pinMode(7, OUTPUT);
+  
+  
+  myservo.attach(SERVO_PIN);
+  myservo.write(0);
   
   
   Serial.begin(9600);
@@ -113,66 +133,18 @@ void setup(void)
 
 void loop(void)
 {
-  //
-  // Ping out role.  Repeatedly send the current time
-  //
-
-  if (role == role_remote_control)
-  {
-    // First, stop listening so we can talk.
-    radio.stopListening();
-
-    // Take the time, and send it.  This will block until complete
-    unsigned long time = millis();
-    printf("Now sending %lu...",time);
-    bool ok = radio.write( &time, sizeof(unsigned long) );
-    
-    if (ok)
-      printf("ok...");
-    else
-      printf("failed.\n\r");
-
-    // Now, continue listening
-    radio.startListening();
-
-    // Wait here until we get a response, or timeout (250ms)
-    unsigned long started_waiting_at = millis();
-    bool timeout = false;
-    while ( ! radio.available() && ! timeout )
-      if (millis() - started_waiting_at > 200 )
-        timeout = true;
-
-    // Describe the results
-    if ( timeout )
-    {
-      printf("Failed, response timed out.\n\r");
-    }
-    else
-    {
-      // Grab the response, compare, and send to debugging spew
-      unsigned long got_time;
-      radio.read( &got_time, sizeof(unsigned long) );
-
-      // Spew it
-      printf("Got response %lu, round-trip delay: %lu\n\r",got_time,millis()-got_time);
-    }
-
-    // Try again 1s later
-    delay(1000);
-  }
 
   //
-  // Pong back role.  Receive each packet, dump it out, and send it back
+  // Base station - receives encrypted messages, decrypt them, and control servo
   //
-
-  if ( role == role_base_station)
-  {
-    // if there is data ready
+  // if there is data ready
     if ( radio.available() )
     {
       // Dump the payloads until we've gotten everything
       //unsigned long got_time;
-      char message[10];
+      char message[17];
+      printf("Size of receive buffer: %d\n", sizeof(message));
+      
       bool done = false;
       while (!done)
       {
@@ -181,13 +153,25 @@ void loop(void)
 
         // Spew it
         printf("Got message %s\r\n",message);
+ 
         
-        if (strcmp(message, "open") == 0) {
-          digitalWrite(7, HIGH);
+        //Decrypting the messsage
+        aes128_dec_single(key, message);
+        message[16] = '\0';
+        printf("decrypted: ");
+        printf(message);
+       
+        
+        if (strcmp(message, "0000PES2015_open") == 0) {
+            digitalWrite(7, HIGH);
+            myservo.write(180);
+            delay(15);
         }
         
-        if (strcmp(message, "close") == 0) {
+        if (strcmp(message, "000PES2015_close") == 0) {
           digitalWrite(7, LOW);
+          myservo.write(0);
+          delay(15);
         }
 
 	// Delay just a little bit to let the other unit
@@ -205,6 +189,6 @@ void loop(void)
       // Now, resume listening so we catch the next packets.
       radio.startListening();
     }
-  }
+  
 }
 // vim:cin:ai:sts=2 sw=2 ft=cpp

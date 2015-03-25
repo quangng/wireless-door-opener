@@ -14,6 +14,9 @@ already supports auto acknowledgement.
 */
 #include "TaskScheduler.h"
 
+//#include "TI_aes.h"
+#include "AESLib.h"
+
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -53,6 +56,10 @@ const char *role_friendly_name[] = { "invalid", "Remote Control", "Base Station"
 role_e role = role_remote_control;
 
 
+uint8_t key[] = { 0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,
+                          0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};
+
+
 //Tasks used by the scheduler
 void openButtonUpdate(void);
 void closeButtonUpdate(void);
@@ -66,19 +73,17 @@ void setup() {
   printf_begin();
   printf("\n\rRemote control starting...\n\r");
   printf("ROLE: %s\n\r",role_friendly_name[role]);
-  
+   
   radio.begin();
   radio.setRetries(15,15);
-  if ( role == role_remote_control) {
-    radio.openWritingPipe(pipes[0]);
-    //radio.openReadingPipe(1,pipes[1]);
-  } else {
-    //radio.openWritingPipe(pipes[1]);
-    //radio.openReadingPipe(1,pipes[0]);
-  }
- // radio.startListening();
+  radio.openWritingPipe(pipes[0]);
   radio.printDetails();
   
+  pinMode(3, OUTPUT); 
+  pinMode(BUTTON_LOCK, INPUT);
+  pinMode(BUTTON_UNLOCK, INPUT); 
+  pinMode(BUTTON_OPEN, INPUT);
+  pinMode(BUTTON_CLOSE, INPUT);
   
   Sch.init();  //Initialize task scheduler
   
@@ -96,13 +101,6 @@ void setup() {
   Sch.addTask(sendMessage, 80, 100, 1);  
   
   Sch.start();  //Start task scheduler
-  
-  pinMode(3, OUTPUT);
-  
-  pinMode(BUTTON_LOCK, INPUT);
-  pinMode(BUTTON_UNLOCK, INPUT); 
-  pinMode(BUTTON_OPEN, INPUT);
-  pinMode(BUTTON_CLOSE, INPUT);
 }
 
 void loop() {
@@ -145,60 +143,49 @@ void unlockButtonUpdate(void) {
 }
 
 void sendMessage(void) {
-  /*
   if(messageFlag) {
     if (lockUnlockState == BUTTON_STATE_UNLOCK) {
       if(openCloseState == BUTTON_STATE_OPEN) {
-        Serial.println("Open");
-        digitalWrite(12, HIGH);
+        char message[] = "0000PES2015_open";
+        Serial.print("Message to be sent: ");
+        Serial.println(message);
+        Serial.print("message size: ");
+        Serial.println(sizeof(message));
+        
+        aes128_enc_single(key, message);
+        Serial.print("encrypted: ");
+        Serial.println(message);
+        printf("\r\nNow sending open message...\r\n");
+        bool ok = radio.write(&message, sizeof(message));
+        
+        if (ok)
+          printf("ok\r\n");
+        else
+          printf("failed\r\n");
+          
+        digitalWrite(3, HIGH);
       } else {
-        Serial.println("Close");
-        digitalWrite(12, LOW);
+        char message[] = "000PES2015_close";
+        Serial.print("Message to be sent: ");
+        Serial.println(message);
+        Serial.print("message size: ");
+        Serial.println(sizeof(message));
+        
+        aes128_enc_single(key, message);
+        printf("encrypted: ");
+        printf(message);          
+        printf("Now sending close message...\r\n");
+        bool ok = radio.write(message, sizeof(message));
+        
+        if (ok)
+          printf("ok\r\n");
+        else
+          printf("failed\r\n");          
+          
+        digitalWrite(3, LOW);
       }
-    }
+    }  
   }
   messageFlag = false;
-  */
-  
-  
-  if (role == role_remote_control) {
-    if(messageFlag) {
-      if (lockUnlockState == BUTTON_STATE_UNLOCK) {
-        if(openCloseState == BUTTON_STATE_OPEN) {
-          char message[] = "open";
-          printf("Now sending open message...\r\n");
-          bool ok = radio.write(&message, sizeof(message));
-          
-          if (ok)
-            printf("ok\r\n");
-          else
-            printf("failed\r\n");
-            
-          digitalWrite(3, HIGH);
-        } else {
-          char message[] = "close";
-          printf("Now sending close message...\r\n");
-          bool ok = radio.write(message, sizeof(message));
-          
-          if (ok)
-            printf("ok\r\n");
-          else
-            printf("failed\r\n");          
-            
-          digitalWrite(3, LOW);
-        }
-      }  
-    }
-    messageFlag = false;
-  } //End if (role == role_remote_control)
-  
-  
 }
-
-
-
-
-
-
-
 
