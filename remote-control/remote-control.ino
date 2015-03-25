@@ -76,7 +76,7 @@ void setup() {
     //radio.openWritingPipe(pipes[1]);
     //radio.openReadingPipe(1,pipes[0]);
   }
-  radio.startListening();
+ // radio.startListening();
   radio.printDetails();
   
   
@@ -97,7 +97,7 @@ void setup() {
   
   Sch.start();  //Start task scheduler
   
-  pinMode(13, OUTPUT);
+  pinMode(3, OUTPUT);
   
   pinMode(BUTTON_LOCK, INPUT);
   pinMode(BUTTON_UNLOCK, INPUT); 
@@ -150,29 +150,44 @@ void sendMessage(void) {
     if (lockUnlockState == BUTTON_STATE_UNLOCK) {
       if(openCloseState == BUTTON_STATE_OPEN) {
         Serial.println("Open");
-        digitalWrite(13, HIGH);
+        digitalWrite(12, HIGH);
       } else {
         Serial.println("Close");
-        digitalWrite(13, LOW);
+        digitalWrite(12, LOW);
       }
     }
   }
   messageFlag = false;
   */
+  
+  
   if (role == role_remote_control) {
     if(messageFlag) {
       if (lockUnlockState == BUTTON_STATE_UNLOCK) {
         if(openCloseState == BUTTON_STATE_OPEN) {
-          printf("Now sending open message...");
-          bool ok = radio.write("open", sizeof("open"));
-          digitalWrite(13, HIGH);
+          char message[] = "open";
+          printf("Now sending open message...\r\n");
+          bool ok = radio.write(&message, sizeof(message));
+          
+          if (ok)
+            printf("ok\r\n");
+          else
+            printf("failed\r\n");
+            
+          digitalWrite(3, HIGH);
         } else {
-          printf("Now sending close message...");
-          bool ok = radio.write("close", sizeof("close"));
-          digitalWrite(13, LOW);
+          char message[] = "close";
+          printf("Now sending close message...\r\n");
+          bool ok = radio.write(message, sizeof(message));
+          
+          if (ok)
+            printf("ok\r\n");
+          else
+            printf("failed\r\n");          
+            
+          digitalWrite(3, LOW);
         }
-      }
-      
+      }  
     }
     messageFlag = false;
   } //End if (role == role_remote_control)

@@ -1,198 +1,210 @@
 /*
-University of Turku
-Master's degree in Embedded Computing
-Cyber Physical Systems course
-Project: Wireless door opener
-Author: Vu Nguyen <quangngmetro@gmail.com>
-License: GNU GPL
+ Copyright (C) 2011 J. Coliz <maniacbug@ymail.com>
 
-Purpose: This code implement the remote control part of the wireless door opener. It receives 
-signal from the open/close buttons, then generates a message accordingt to the button pressed.
-After that, the message is encrypted using AES-128 and sent to the base station via 
-nRF24L01+ transceiver. No handshaking mechanism is implemented since the tranceiver
-already supports auto acknowledgement.
-*/
-#include "TaskScheduler.h"
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU General Public License
+ version 2 as published by the Free Software Foundation.
+ */
+
+/**
+ * Example for Getting Started with nRF24L01+ radios. 
+ *
+ * This is an example of how to use the RF24 class.  Write this sketch to two 
+ * different nodes.  Put one of the nodes into 'transmit' mode by connecting 
+ * with the serial monitor and sending a 'T'.  The ping node sends the current 
+ * time to the pong node, which responds by sending the value back.  The ping 
+ * node can then see how long the whole cycle took.
+ */
 
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
-//#include <RF24_config.h>
 #include "printf.h"
 
-//Buttons - open, close, lock, unlock 
-#define BUTTON_OPEN 4
-#define BUTTON_CLOSE 5
-#define BUTTON_LOCK 6
-#define BUTTON_UNLOCK 7
+//
+// Hardware configuration
+//
 
-#define BUTTON_STATE_OPEN true
-#define BUTTON_STATE_CLOSE false
-#define BUTTON_STATE_LOCK true
-#define BUTTON_STATE_UNLOCK false
+// Set up nRF24L01 radio on SPI bus plus pins 9 & 10 
 
-//Set up buttons
-bool lockUnlockState = BUTTON_STATE_LOCK;
-bool openCloseState = BUTTON_STATE_CLOSE;
-bool openButtonState;
-bool lastOpenButtonState = HIGH;
-bool closeButtonState;
-bool lastCloseButtonState = HIGH;
-
-bool messageFlag = false;
-
-// Set up nRF24L01 radio on SPI bus plus pins 9 & 10
 RF24 radio(9,10);
+
+//
+// Topology
+//
+
 // Radio pipe addresses for the 2 nodes to communicate.
 const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+
+//
+// Role management
+//
+// Set up role.  This sketch uses the same software for all the nodes
+// in this system.  Doing so greatly simplifies testing.  
+//
+
 // The various roles supported by this sketch
 typedef enum { role_remote_control = 1, role_base_station } role_e;
+
 // The debug-friendly names of those roles
 const char *role_friendly_name[] = { "invalid", "Remote Control", "Base Station"};
+
 // The role of the current running sketch
-role_e role = role_remote_control;
+role_e role = role_base_station;
 
-
-//Tasks used by the scheduler
-void openButtonUpdate(void);
-void closeButtonUpdate(void);
-void lockButtonUpdate(void);
-void unlockButtonUpdate(void);
-void sendMessage(void);
-
-
-void setup() {
+void setup(void)
+{
+  //
+  // Print preamble
+  //
+  pinMode(7, OUTPUT);
+  
+  
   Serial.begin(9600);
   printf_begin();
-  printf("\n\rRemote control starting...\n\r");
+  printf("\n\rBase station starting...\n\r");
   printf("ROLE: %s\n\r",role_friendly_name[role]);
-  
+
+  //
+  // Setup and configure rf radio
+  //
+
   radio.begin();
+
+  // optionally, increase the delay between retries & # of retries
   radio.setRetries(15,15);
-  if ( role == role_remote_control) {
-    radio.openWritingPipe(pipes[0]);
+
+  // optionally, reduce the payload size.  seems to
+  // improve reliability
+  //radio.setPayloadSize(8);
+
+  //
+  // Open pipes to other nodes for communication
+  //
+
+  // This simple sketch opens two pipes for these two nodes to communicate
+  // back and forth.
+  // Open 'our' pipe for writing
+  // Open the 'other' pipe for reading, in position #1 (we can have up to 5 pipes open for reading)
+
+  //if ( role == role_ping_out )
+  {
+    //radio.openWritingPipe(pipes[0]);
     //radio.openReadingPipe(1,pipes[1]);
-  } else {
+  }
+  //else
+  {
     //radio.openWritingPipe(pipes[1]);
-    //radio.openReadingPipe(1,pipes[0]);
+    radio.openReadingPipe(1,pipes[0]);
   }
- // radio.startListening();
+
+  //
+  // Start listening
+  //
+
+  radio.startListening();
+
+  //
+  // Dump the configuration of the rf unit for debugging
+  //
+
   radio.printDetails();
-  
-  
-  Sch.init();  //Initialize task scheduler
-  
-  /*
-   * use Sch.addTask(task, start_time, period, priority) to add tasks
-   * task - tasks to be scheduled
-   * start_time - when the task starts (ms)
-   * period - repeat period of the task (ms)
-   * priority - 1: mormal priority, 0: high priority
-   */
-  Sch.addTask(openButtonUpdate, 0, 100, 0);
-  Sch.addTask(closeButtonUpdate, 20, 100, 0);
-  Sch.addTask(lockButtonUpdate, 40, 100, 0);
-  Sch.addTask(unlockButtonUpdate, 60, 100, 0);
-  Sch.addTask(sendMessage, 80, 100, 1);  
-  
-  Sch.start();  //Start task scheduler
-  
-  pinMode(12, OUTPUT);
-  
-  pinMode(BUTTON_LOCK, INPUT);
-  pinMode(BUTTON_UNLOCK, INPUT); 
-  pinMode(BUTTON_OPEN, INPUT);
-  pinMode(BUTTON_CLOSE, INPUT);
 }
 
-void loop() {
-  Sch.dispatchTasks();
-}
+void loop(void)
+{
+  //
+  // Ping out role.  Repeatedly send the current time
+  //
 
-//Tasks to be scheduled
-void openButtonUpdate(void) {
-  int reading = digitalRead(BUTTON_OPEN);
-  
-  if (reading != lastOpenButtonState) {
-    if (reading == LOW) {
-      openCloseState = BUTTON_STATE_OPEN;
-      messageFlag = true;   
+  if (role == role_remote_control)
+  {
+    // First, stop listening so we can talk.
+    radio.stopListening();
+
+    // Take the time, and send it.  This will block until complete
+    unsigned long time = millis();
+    printf("Now sending %lu...",time);
+    bool ok = radio.write( &time, sizeof(unsigned long) );
+    
+    if (ok)
+      printf("ok...");
+    else
+      printf("failed.\n\r");
+
+    // Now, continue listening
+    radio.startListening();
+
+    // Wait here until we get a response, or timeout (250ms)
+    unsigned long started_waiting_at = millis();
+    bool timeout = false;
+    while ( ! radio.available() && ! timeout )
+      if (millis() - started_waiting_at > 200 )
+        timeout = true;
+
+    // Describe the results
+    if ( timeout )
+    {
+      printf("Failed, response timed out.\n\r");
     }
-  }
-  lastOpenButtonState = reading; 
-}
+    else
+    {
+      // Grab the response, compare, and send to debugging spew
+      unsigned long got_time;
+      radio.read( &got_time, sizeof(unsigned long) );
 
-void closeButtonUpdate(void) {
-  int reading = digitalRead(BUTTON_CLOSE);
-  
-  if (reading != lastCloseButtonState) {
-    if (reading == LOW) {
-      openCloseState = BUTTON_STATE_CLOSE;
-      messageFlag = true;
+      // Spew it
+      printf("Got response %lu, round-trip delay: %lu\n\r",got_time,millis()-got_time);
     }
+
+    // Try again 1s later
+    delay(1000);
   }
-  lastCloseButtonState = reading;  
-}
 
-void lockButtonUpdate(void) {
-  if(digitalRead(BUTTON_LOCK) == 0)
-    lockUnlockState = BUTTON_STATE_LOCK;
-}
+  //
+  // Pong back role.  Receive each packet, dump it out, and send it back
+  //
 
-void unlockButtonUpdate(void) {
-  if(digitalRead(BUTTON_UNLOCK) == 0)
-    lockUnlockState = BUTTON_STATE_UNLOCK;
-}
+  if ( role == role_base_station)
+  {
+    // if there is data ready
+    if ( radio.available() )
+    {
+      // Dump the payloads until we've gotten everything
+      //unsigned long got_time;
+      char message[10];
+      bool done = false;
+      while (!done)
+      {
+        // Fetch the payload, and see if this was the last one.
+        done = radio.read( &message, sizeof(message) );
 
-void sendMessage(void) {
-  /*
-  if(messageFlag) {
-    if (lockUnlockState == BUTTON_STATE_UNLOCK) {
-      if(openCloseState == BUTTON_STATE_OPEN) {
-        Serial.println("Open");
-        digitalWrite(12, HIGH);
-      } else {
-        Serial.println("Close");
-        digitalWrite(12, LOW);
-      }
-    }
-  }
-  messageFlag = false;
-  */
-  
-  
-  if (role == role_remote_control) {
-    if(messageFlag) {
-      if (lockUnlockState == BUTTON_STATE_UNLOCK) {
-        if(openCloseState == BUTTON_STATE_OPEN) {
-          char message[] = "open";
-          printf("Now sending open message...\r\n");
-          bool ok = radio.write(&message, sizeof(message));
-          
-          if (ok)
-            printf("ok\r\n");
-          else
-            printf("failed\r\n");
-            
-          digitalWrite(12, HIGH);
-        } else {
-          char message[] = "close";
-          printf("Now sending close message...\r\n");
-          bool ok = radio.write(message, sizeof(message));
-          digitalWrite(12, LOW);
+        // Spew it
+        printf("Got message %s\r\n",message);
+        
+        if (strcmp(message, "open") == 0) {
+          digitalWrite(7, HIGH);
         }
-      }  
+        
+        if (strcmp(message, "close") == 0) {
+          digitalWrite(7, LOW);
+        }
+
+	// Delay just a little bit to let the other unit
+	// make the transition to receiver
+	delay(20);
+      }
+
+      // First, stop listening so we can talk
+      //radio.stopListening();
+
+      // Send the final one back.
+      //radio.write( &got_time, sizeof(unsigned long) );
+      //printf("Sent response.\n\r");
+
+      // Now, resume listening so we catch the next packets.
+      radio.startListening();
     }
-    messageFlag = false;
-  } //End if (role == role_remote_control)
-  
-  
+  }
 }
-
-
-
-
-
-
-
-
+// vim:cin:ai:sts=2 sw=2 ft=cpp
