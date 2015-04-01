@@ -19,7 +19,6 @@ already supports auto acknowledgement.
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
-#include "printf.h"
 
 //Buttons - open, close, lock, unlock 
 #define BUTTON_OPEN 4
