@@ -42,11 +42,11 @@ bool lastCloseButtonState = HIGH;
 
 bool messageFlag = false;
 
-RF24 radio(9,10);                                      // Set up nRF24L01 radio on SPI bus plus pins 9 & 10
+RF24 radio(9,10);  // Set up nRF24L01 radio on SPI bus plus pins 9 & 10
 const uint64_t pipe = 0xF0F0F0F0E1LL;  // Radio pipe addresses for the 2 nodes to communicate.
 
-uint8_t key[] = { 0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,  //Secret key for remote-control
-                          0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};  //and base station
+uint8_t key[] = {  0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,    //Secret key for remote-control
+                            0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};  //and base station
 
 //Tasks used by the scheduler
 void openButtonUpdate(void);
