@@ -14,13 +14,11 @@ already supports auto acknowledgement.
 */
 #include "TaskScheduler.h"
 
-//#include "TI_aes.h"
-#include "AESLib.h"
+#include "pes_aes128.h"
 
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
-//#include <RF24_config.h>
 #include "printf.h"
 
 //Buttons - open, close, lock, unlock 
@@ -44,10 +42,8 @@ bool lastCloseButtonState = HIGH;
 
 bool messageFlag = false;
 
-// Set up nRF24L01 radio on SPI bus plus pins 9 & 10
-RF24 radio(9,10);
-// Radio pipe addresses for the 2 nodes to communicate.
-const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };
+RF24 radio(9,10);  // Set up nRF24L01 radio on SPI bus plus pins 9 & 10
+const uint64_t pipes[2] = { 0xF0F0F0F0E1LL, 0xF0F0F0F0D2LL };  // Radio pipe addresses for the 2 nodes to communicate.
 // The various roles supported by this sketch
 typedef enum { role_remote_control = 1, role_base_station } role_e;
 // The debug-friendly names of those roles
@@ -56,9 +52,8 @@ const char *role_friendly_name[] = { "invalid", "Remote Control", "Base Station"
 role_e role = role_remote_control;
 
 
-uint8_t key[] = { 0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,
-                          0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};
-
+uint8_t key[] = { 0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,  //Secret key for remote-control
+                          0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};  //and base station
 
 //Tasks used by the scheduler
 void openButtonUpdate(void);
@@ -146,15 +141,19 @@ void sendMessage(void) {
   if(messageFlag) {
     if (lockUnlockState == BUTTON_STATE_UNLOCK) {
       if(openCloseState == BUTTON_STATE_OPEN) {
-        char message[] = "0000PES2015_open";
+        uint8_t message[] = "0000PES2015_open";
         Serial.print("Message to be sent: ");
-        Serial.println(message);
+        for (int i = 0; i < 16; i++) {
+          char c = message[i];
+          Serial.print(c);
+        }
+        
         Serial.print("message size: ");
         Serial.println(sizeof(message));
         
-        aes128_enc_single(key, message);
-        Serial.print("encrypted: ");
-        Serial.println(message);
+        aes_encrypt(message, key);
+        //Serial.print("encrypted: ");
+        //Serial.println(message);
         printf("\r\nNow sending open message...\r\n");
         bool ok = radio.write(&message, sizeof(message));
         
@@ -165,15 +164,19 @@ void sendMessage(void) {
           
         digitalWrite(3, HIGH);
       } else {
-        char message[] = "000PES2015_close";
+        uint8_t message[] = "000PES2015_close";
         Serial.print("Message to be sent: ");
-        Serial.println(message);
+        for (int i = 0; i < 16; i++) {
+          char c = message[i];
+          Serial.print(c);
+        }
+        
         Serial.print("message size: ");
         Serial.println(sizeof(message));
         
-        aes128_enc_single(key, message);
-        printf("encrypted: ");
-        printf(message);          
+        aes_encrypt(message,key);
+        //printf("encrypted: ");
+        //printf(message);          
         printf("Now sending close message...\r\n");
         bool ok = radio.write(message, sizeof(message));
         
