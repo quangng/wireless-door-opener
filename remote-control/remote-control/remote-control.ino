@@ -1,7 +1,5 @@
 #include <TaskScheduler.h>
-
 #include <cps_aes128.h>
-
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <nrf24.h>
@@ -12,6 +10,7 @@
 #define BUTTON_LOCK 6
 #define BUTTON_UNLOCK 7
 
+//Button states
 #define BUTTON_STATE_OPEN true
 #define BUTTON_STATE_CLOSE false
 #define BUTTON_STATE_LOCK true
@@ -34,8 +33,6 @@ uint8_t tx_address[5] = {0xE7,0xE7,0xE7,0xE7,0xE7};
 uint8_t key[] = { 0x54, 0x68, 0x69, 0x73, 0x69, 0x73, 0x61, 0x73,   //Secret key for remote-control
                   0x65, 0x63, 0x72, 0x65, 0x74, 0x6b, 0x65, 0x79};  //and base station
 
-uint8_t message[4];
-
 //Tasks used by the scheduler
 void openButtonUpdate(void);
 void closeButtonUpdate(void);
@@ -45,12 +42,9 @@ void sendMessage(void);
 
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println("Testing remote-control...");
-  
   //Set up nRF24L01+ radio transceiver
-  nrf24_init(9,10);         //set ce pin and csn pin
-  nrf24_config(2,17);    //channel: #2, payload: 17 including Null character
+  nrf24_init(9,10);   //set ce pin and csn pin
+  nrf24_config(2,17); //channel: #2, payload: 17 including Null character
   nrf24_tx_address(tx_address);
   
   //Set up button pins 
@@ -74,7 +68,7 @@ void setup() {
   Sch.addTask(closeButtonUpdate, 20, 100, 0);
   Sch.addTask(lockButtonUpdate, 40, 100, 0);
   Sch.addTask(unlockButtonUpdate, 60, 100, 0);
-  Sch.addTask(sendMessage, 80, 100, 1);  
+  Sch.addTask(sendMessage, 80, 100, 1);
  
   Sch.start();  //Start task scheduler
 }
@@ -95,7 +89,6 @@ void openButtonUpdate(void) {
         openCloseState = BUTTON_STATE_OPEN;
         messageFlag = true;
         digitalWrite(3, HIGH);
-        Serial.println("open");        
       }
     }
   }
@@ -113,8 +106,7 @@ void closeButtonUpdate(void) {
       if (lockUnlockState == BUTTON_STATE_UNLOCK) {
         openCloseState = BUTTON_STATE_CLOSE;
         messageFlag = true;
-        digitalWrite(3, LOW);
-        Serial.println("close");      
+        digitalWrite(3, LOW);      
       }
     }
   }
@@ -129,7 +121,6 @@ void lockButtonUpdate(void) {
   if (reading != lastLockButtonState) {
     if (reading == LOW) {
       lockUnlockState = BUTTON_STATE_LOCK;
-      Serial.println("locked");
     }
   }
   lastLockButtonState = reading;
@@ -144,11 +135,9 @@ void unlockButtonUpdate(void) {
   if (reading != lastUnlockButtonState) {
     if (reading == LOW) {
       lockUnlockState = BUTTON_STATE_UNLOCK;
-      Serial.println("unlocked");      
     }
   }
   lastUnlockButtonState = reading;
-
 }
 
 
