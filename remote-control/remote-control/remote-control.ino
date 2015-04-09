@@ -42,6 +42,7 @@ void sendMessage(void);
 
 
 void setup() {
+  Serial.begin(9600);
   //Set up nRF24L01+ radio transceiver
   nrf24_init(9,10);   //set ce pin and csn pin
   nrf24_config(2,17); //channel: #2, payload: 17 including Null character
@@ -64,11 +65,11 @@ void setup() {
    * period - repeat period of the task (ms)
    * priority - 1: mormal priority, 0: high priority
    */
-  Sch.addTask(openButtonUpdate, 0, 100, 0);
-  Sch.addTask(closeButtonUpdate, 20, 100, 0);
-  Sch.addTask(lockButtonUpdate, 40, 100, 0);
-  Sch.addTask(unlockButtonUpdate, 60, 100, 0);
-  Sch.addTask(sendMessage, 80, 100, 1);
+  Sch.addTask(openButtonUpdate, 0, 100, 1);
+  Sch.addTask(closeButtonUpdate, 20, 100, 1);
+  Sch.addTask(lockButtonUpdate, 40, 100, 1);
+  Sch.addTask(unlockButtonUpdate, 60, 100, 1);
+  Sch.addTask(sendMessage, 80, 100, 0);
  
   Sch.start();  //Start task scheduler
 }
@@ -92,7 +93,7 @@ void openButtonUpdate(void) {
       }
     }
   }
-  lastOpenButtonState = reading; 
+  lastOpenButtonState = reading;   
 }
 
 
@@ -115,7 +116,7 @@ void closeButtonUpdate(void) {
 
 
 //lock button task. Set lockUnlockState variable to state lock when "lock" button is pressed
-void lockButtonUpdate(void) {
+void lockButtonUpdate(void) {  
   int reading = digitalRead(BUTTON_LOCK);
   
   if (reading != lastLockButtonState) {
