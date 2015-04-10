@@ -148,7 +148,6 @@ void unlockButtonUpdate(void) {
 //The same procedure applies to "close" button. If remote-control is locked, this task does nothing
 void sendMessage(void) {
   if(messageFlag) {
-    if (lockUnlockState == BUTTON_STATE_UNLOCK) {
       if(openCloseState == BUTTON_STATE_OPEN) {
         uint8_t message[] = "0000PES2015_open";
         aes_encrypt(message, key);
@@ -162,5 +161,4 @@ void sendMessage(void) {
       }
     }
     messageFlag = false;
-  }
 }
